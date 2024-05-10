@@ -1,12 +1,23 @@
-import datetime
 import pandas as pd
 
 import streamlit as st
+st.set_page_config(layout="wide")
 
 try:
-    grants = pd.read_csv('grants.csv')
+    grants = pd.read_csv('static/data/grants.csv')
+    # Add id
+    grants["id"] = grants.index
+    # Add link to add invoice
+    grants['invoice_link'] = f'#' + grants['id'].astype(str)
+
 except:
     grants = pd.DataFrame()
+
+
+def update_grants() -> pd.DataFrame:
+    global grants
+    return grants
+
 
 def record_grant(grant_name: str, grant_description: str,
                  grant_duration: str, grant_amount: float, grant_categories: list) -> pd.DataFrame:
@@ -61,8 +72,9 @@ def create_grant():
             st.rerun()
 
 
-if st.button("Add Grant"):
-    create_grant()
 
 if len(grants) > 0:
-    st.data_editor(data=grants, use_container_width=True, hide_index=True, num_rows="dynamic")
+    updated_df = st.data_editor(data=grants, use_container_width=True, hide_index=True, num_rows="dynamic")
+
+if st.button("Add Grant"):
+    create_grant()

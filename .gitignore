@@ -1,6 +1,6 @@
 
 .DS_Store
-/data/
+/static/data/
 /.ipynb_checkpoints/
 /linq360.zip
 .idea/
