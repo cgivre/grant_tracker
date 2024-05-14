@@ -4,7 +4,9 @@ import sqlite3
 from millify import millify
 import pandas as pd
 from pathlib import Path
-from sqlalchemy import create_engine
+import streamlit as st
+
+streamlit_root_logger = logging.getLogger(st.__name__)
 
 
 class Utils:
@@ -85,18 +87,63 @@ class Utils:
         sql = (
             f"INSERT INTO grants (grant_name, grant_description, grant_start_date, grant_end_date, grant_amount, grant_categories) "
             f"VALUES ('{grant_name}','{grant_description}', '{grant_start_date}', '{grant_end_date}', '{grant_amount}','{category_list}')")
-        logging.debug(sql)
+        streamlit_root_logger.debug(sql)
 
         try:
             self.conn.execute(sql)
         except Exception as e:
-            raise e
+            streamlit_root_logger.error(e)
+            raise False
 
         return True
 
-    def get_grants(self) -> pd.DataFrame:
-        sql = "SELECT * FROM grants"
+    def create_invoice(self, grant_name: str,
+                       vendor_name: str,
+                       invoice_categories: str,
+                       invoice_date: str,
+                       invoice_amount: float,
+                       invoice_description: str,
+                       invoice_image: str) -> bool:
 
+        # Get the grant id
+        grant_id = self.get_grant_id(grant_name)
+        sql = (f"INSERT INTO invoices (grant_id, vendor_name, invoice_date, invoice_amount, invoice_categories, invoice_description, invoice_receipt_location) "
+               f"VALUES({grant_id},'{vendor_name}','{invoice_date}','{invoice_amount}','{invoice_categories}','{invoice_description}', '{invoice_image}')")
+        streamlit_root_logger.debug(sql)
+
+        try:
+            self.conn.execute(sql)
+        except Exception as e:
+            streamlit_root_logger.error(e)
+            return False
+        return True
+
+    def get_grants(self) -> pd.DataFrame:
+        sql = """SELECT grant_name, grant_amount, grant_categories,
+                   grant_description, grant_start_date, grant_end_date,
+                   invoice_count, invoiced_total
+                FROM grants
+                INNER JOIN (
+                    SELECT grant_id, SUM(invoice_amount) AS invoiced_total, COUNT(*) AS invoice_count
+                    FROM invoices
+                    GROUP BY grant_id
+                ) AS invoice_stats ON invoice_stats.grant_id = grants.grant_id"""
+        result = pd.read_sql(sql, self.conn)
+
+        # Convert Dates to Date objects
+        result['grant_start_date'] = pd.to_datetime(result['grant_start_date'])
+        result['grant_end_date'] = pd.to_datetime(result['grant_end_date'])
+        result['days_remaining'] = (result['grant_end_date'] - pd.to_datetime('today')).dt.days
+
+        return result
+
+    def get_grant_id(self, grant_name: str) -> int:
+        sql = f"SELECT grant_id FROM grants WHERE grant_name = '{grant_name}'"
+        result = pd.read_sql(sql, self.conn)
+        return result['grant_id'].values[0]
+
+    def get_invoices(self, grant_id: int) -> pd.DataFrame:
+        sql = f"SELECT * FROM invoices WHERE grant_id = {grant_id}"
         result = pd.read_sql(sql, self.conn)
         return result
 
@@ -106,8 +153,9 @@ class Utils:
         total = result['total'].values[0]
         return millify(total, precision=0)
 
+    @staticmethod
+    def list_to_string(the_list: list) -> str:
+        if the_list is None:
+            return ""
 
-
-if __name__ == '__main__':
-    utils = Utils()
-    utils.close_connection()
+        return ','.join(the_list)

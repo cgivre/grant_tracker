@@ -1,21 +1,18 @@
 import logging
 
-import pandas as pd
-
 import streamlit as st
 from db_utils import utils
 
 st.set_page_config(layout="wide")
+streamlit_root_logger = logging.getLogger(st.__name__)
 
 utils = utils.Utils()
 updated_df = None
 
 if "grants" not in st.session_state:
     grants = utils.get_grants()
-    # Add id
-    grants["id"] = grants.index
-    # Add link to add invoice
-    grants['invoice_link'] = f'#' + grants['id'].astype(str)
+    grants['remaining_funds'] = grants['grant_amount'] - grants['invoiced_total']
+    grants['remaining_percentage'] = grants['remaining_funds'] / grants['grant_amount'] * 100
     st.session_state["grants"] = grants
 
 
@@ -49,6 +46,7 @@ def create_grant():
             utils.create_grant(grant_name, grant_description, grant_duration[0], grant_duration[1], grant_amount,
                                grant_categories)
             st.session_state["grants"] = utils.get_grants()
+
             st.rerun()
 
 
@@ -81,5 +79,5 @@ if updated_df is not None and not updated_df.equals(st.session_state["grants"]):
     # script rerun, and
     # 2. The new dataframe value is different from the old value
     # update(updated_df)
-    logging.debug("Updating main dataframe.")
+    streamlit_root_logger.debug("Updating main dataframe.")
     st.session_state["grants"] = updated_df
