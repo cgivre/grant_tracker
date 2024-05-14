@@ -1,11 +1,14 @@
 import pandas as pd
+from db_utils import utils
 
 import streamlit as st
 import dateparser
 st.set_page_config(layout="wide")
 
+utils = utils.Utils()
+
 try:
-    grants = pd.read_csv('static/data/grants.csv')
+    grants = utils.get_grants()
     # Add id
     grants["id"] = grants.index
 

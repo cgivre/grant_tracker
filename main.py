@@ -1,43 +1,22 @@
+import logging
+
 import pandas as pd
 
 import streamlit as st
+from db_utils import utils
+
 st.set_page_config(layout="wide")
 
-try:
-    grants = pd.read_csv('static/data/grants.csv')
+utils = utils.Utils()
+updated_df = None
+
+if "grants" not in st.session_state:
+    grants = utils.get_grants()
     # Add id
     grants["id"] = grants.index
     # Add link to add invoice
     grants['invoice_link'] = f'#' + grants['id'].astype(str)
-
-except:
-    grants = pd.DataFrame()
-
-
-def update_grants() -> pd.DataFrame:
-    global grants
-    return grants
-
-
-def record_grant(grant_name: str, grant_description: str,
-                 grant_duration: str, grant_amount: float, grant_categories: list) -> pd.DataFrame:
-    global grants
-
-    # TODO Validate Data
-
-    # Create a dictionary
-    grant = {
-        "grant_name": grant_name,
-        "grant_description": grant_description,
-        "grant_start_date": grant_duration[0],
-        "grant_end_date": grant_duration[1],
-        "grant_amount": grant_amount,
-        "grant_categories": str(grant_categories)
-    }
-    temp_df = pd.DataFrame([grant])
-    grants = pd.concat([grants, temp_df])
-    grants.to_csv('grants.csv', index=False)
-    return grants
+    st.session_state["grants"] = grants
 
 
 @st.experimental_dialog("Record a Grant")
@@ -67,14 +46,40 @@ def create_grant():
                                                    'Transportation'])
         submitted = st.form_submit_button("Submit Grant")
         if submitted:
-            global grants
-            grants = record_grant(grant_name, grant_description, grant_duration, grant_amount, grant_categories)
+            utils.create_grant(grant_name, grant_description, grant_duration[0], grant_duration[1], grant_amount,
+                               grant_categories)
+            st.session_state["grants"] = utils.get_grants()
             st.rerun()
 
 
+# Add metric columns
+col1, col2 = st.columns(2)
+col1.metric(
+    label="Active Grants",
+    help="Number of grants that are active.",
+    value=len(st.session_state["grants"])
+)
+col2.metric(
+    label="Total Available Funds",
+    help="Total amount of available funds",
+    value=utils.get_total_available_grants(),
+)
 
-if len(grants) > 0:
-    updated_df = st.data_editor(data=grants, use_container_width=True, hide_index=True, num_rows="dynamic")
+if len(st.session_state["grants"]) > 0:
+    updated_df = st.data_editor(data=st.session_state["grants"],
+                                use_container_width=True,
+                                hide_index=True,
+                                num_rows="dynamic")
 
 if st.button("Add Grant"):
     create_grant()
+
+
+if updated_df is not None and not updated_df.equals(st.session_state["grants"]):
+    # This will only run if
+    # 1. Some widget has been changed (including the dataframe editor), triggering a
+    # script rerun, and
+    # 2. The new dataframe value is different from the old value
+    # update(updated_df)
+    logging.debug("Updating main dataframe.")
+    st.session_state["grants"] = updated_df

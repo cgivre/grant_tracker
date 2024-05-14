@@ -1,18 +1,23 @@
+import logging
 import sqlite3
+
+from millify import millify
+import pandas as pd
 from pathlib import Path
+from sqlalchemy import create_engine
 
 
 class Utils:
-    DATABASE_PATH = '../static/data/database.db'
+    DATABASE_PATH = 'static/data/database.db'
 
     def __init__(self):
         # Check and see if the database file is there, and create one if not.
 
         if not Path(self.DATABASE_PATH).is_file():
-            self.conn = sqlite3.connect(self.DATABASE_PATH)
+            self.conn = sqlite3.connect(self.DATABASE_PATH, isolation_level=None)
             self.__create_database()
         else:
-            self.conn = sqlite3.connect(self.DATABASE_PATH)
+            self.conn = sqlite3.connect(self.DATABASE_PATH, isolation_level=None)
 
     def close_connection(self):
         self.conn.close()
@@ -53,6 +58,54 @@ class Utils:
         """
         cursor.execute(invoice_table_query)
         return True
+
+    def create_grant(self, grant_name: str, grant_description: str,
+                     grant_start_date: str, grant_end_date: str,
+                     grant_amount: float, grant_categories: list) -> bool:
+        """
+        Adds a grant to the Grant Tracker Database
+        :param grant_name: The grant name
+        :param grant_description: A description of the grant.
+        :param grant_start_date: The grant start date in yyyy-MM-dd format
+        :param grant_end_date: The grant end date in yyyy-MM-dd format
+        :param grant_amount: The grant amount
+        :param grant_categories: A list of categories for the grant.
+        :return:
+        """
+        # Validate Grant info
+        if grant_amount <= 0:
+            raise ValueError('Grant amount must be greater than zero')
+        elif grant_name == "" or grant_description == "":
+            raise ValueError('Grant name or description cannot be empty')
+        elif grant_start_date == "" or grant_end_date == "":
+            raise ValueError('Grant start date and end date cannot be empty')
+
+        # Insert grant into database
+        category_list = ', '.join(grant_categories)
+        sql = (
+            f"INSERT INTO grants (grant_name, grant_description, grant_start_date, grant_end_date, grant_amount, grant_categories) "
+            f"VALUES ('{grant_name}','{grant_description}', '{grant_start_date}', '{grant_end_date}', '{grant_amount}','{category_list}')")
+        logging.debug(sql)
+
+        try:
+            self.conn.execute(sql)
+        except Exception as e:
+            raise e
+
+        return True
+
+    def get_grants(self) -> pd.DataFrame:
+        sql = "SELECT * FROM grants"
+
+        result = pd.read_sql(sql, self.conn)
+        return result
+
+    def get_total_available_grants(self):
+        sql = "SELECT SUM(grant_amount) as total FROM grants"
+        result = pd.read_sql(sql, self.conn)
+        total = result['total'].values[0]
+        return millify(total, precision=0)
+
 
 
 if __name__ == '__main__':
