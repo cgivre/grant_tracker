@@ -1,7 +1,8 @@
 import logging
 
 import streamlit as st
-from db_utils import utils
+from utils import utils
+from st_aggrid import AgGrid, GridOptionsBuilder
 
 st.set_page_config(layout="wide")
 streamlit_root_logger = logging.getLogger(st.__name__)
@@ -9,11 +10,10 @@ streamlit_root_logger = logging.getLogger(st.__name__)
 utils = utils.Utils()
 updated_df = None
 
-if "grants" not in st.session_state:
-    grants = utils.get_grants()
-    grants['remaining_funds'] = grants['grant_amount'] - grants['invoiced_total']
-    grants['remaining_percentage'] = grants['remaining_funds'] / grants['grant_amount'] * 100
-    st.session_state["grants"] = grants
+grants = utils.get_grants()
+grants['remaining_funds'] = grants['grant_amount'] - grants['invoiced_total']
+grants['remaining_percentage'] = grants['remaining_funds'] / grants['grant_amount'] * 100
+st.session_state["grants"] = grants
 
 
 @st.experimental_dialog("Record a Grant")
@@ -51,27 +51,41 @@ def create_grant():
 
 
 # Add metric columns
-col1, col2 = st.columns(2)
+col1, col2, col3 = st.columns(3)
 col1.metric(
     label="Active Grants",
     help="Number of grants that are active.",
     value=len(st.session_state["grants"])
 )
 col2.metric(
-    label="Total Available Funds",
+    label="Total Grant Funds",
     help="Total amount of available funds",
     value=utils.get_total_available_grants(),
 )
 
+col3.metric(
+    label="Total Unclaimed Funding",
+    help="Amount of funding which has not been claimed.",
+    value=utils.get_available_funding()
+)
+
 if len(st.session_state["grants"]) > 0:
+    """
     updated_df = st.data_editor(data=st.session_state["grants"],
                                 use_container_width=True,
                                 hide_index=True,
                                 num_rows="dynamic")
+    """
+    grid_builder = GridOptionsBuilder.from_dataframe(st.session_state["grants"])
+    # Add checkbox to first column
+    grid_builder.configure_selection(selection_mode="single", use_checkbox=True)
+    grid_builder.configure_side_bar(filters_panel=True, columns_panel=True)
+
+    grid_options = grid_builder.build()
+    AgGrid(data=st.session_state["grants"], gridOptions=grid_options, key='grid1')
 
 if st.button("Add Grant"):
     create_grant()
-
 
 if updated_df is not None and not updated_df.equals(st.session_state["grants"]):
     # This will only run if

@@ -121,10 +121,10 @@ class Utils:
     def get_grants(self) -> pd.DataFrame:
         sql = """SELECT grant_name, grant_amount, grant_categories,
                    grant_description, grant_start_date, grant_end_date,
-                   invoice_count, invoiced_total
+                   COALESCE(invoice_count,0) AS invoice_count, COALESCE(invoiced_total,0) AS invoiced_total
                 FROM grants
-                INNER JOIN (
-                    SELECT grant_id, SUM(invoice_amount) AS invoiced_total, COUNT(*) AS invoice_count
+                LEFT JOIN (
+                    SELECT grant_id, COALESCE(SUM(invoice_amount),0) AS invoiced_total, COUNT(*) AS invoice_count
                     FROM invoices
                     GROUP BY grant_id
                 ) AS invoice_stats ON invoice_stats.grant_id = grants.grant_id"""
@@ -147,11 +147,19 @@ class Utils:
         result = pd.read_sql(sql, self.conn)
         return result
 
-    def get_total_available_grants(self):
+    def get_total_available_grants(self) -> str:
         sql = "SELECT SUM(grant_amount) as total FROM grants"
         result = pd.read_sql(sql, self.conn)
         total = result['total'].values[0]
         return millify(total, precision=0)
+
+    def get_available_funding(self) -> float:
+        sql = """SELECT SUM(grant_amount) - SUM(invoice_amount) AS remaining_funding
+            FROM grants
+            LEFT JOIN invoices ON invoices.grant_id = grants.grant_id"""
+
+        result = pd.read_sql(sql, self.conn)
+        return result['remaining_funding'].values[0]
 
     @staticmethod
     def list_to_string(the_list: list) -> str:

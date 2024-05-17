@@ -1,12 +1,12 @@
 import logging
 
+import pandas as pd
 import streamlit as st
-import dateparser
 
-from db_utils.utils import Utils
+from utils.utils import Utils
 
 st.set_page_config(layout="wide")
-streamlit_root_logger = logging.getLogger(st.__name__)
+streamlit_root_logger = logging.getLogger(__name__)
 
 utils = Utils()
 
@@ -24,8 +24,8 @@ with st.container():
         vendor_name = st.text_input(label="Vendor Name")
 
         if selected_grant != '':
-            start_date = dateparser.parse(grants[grants['grant_name'] == selected_grant]['grant_start_date'].values[0])
-            end_date = dateparser.parse(grants[grants['grant_name'] == selected_grant]['grant_end_date'].values[0])
+            start_date = pd.to_datetime(str(grants[grants['grant_name'] == selected_grant]['grant_start_date'].values[0]))
+            end_date = pd.to_datetime(str(grants[grants['grant_name'] == selected_grant]['grant_end_date'].values[0]))
 
             expense_categories = st.multiselect(label="Grant Categories",
                                               help="Enter the categories of your expense.",
@@ -50,5 +50,3 @@ with st.container():
             if submitted:
                 utils.create_invoice(selected_grant, vendor_name, Utils.list_to_string(expense_categories), invoice_date,
                                      invoice_amount, invoice_description, "invoice_image")
-
-
