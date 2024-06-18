@@ -1,6 +1,8 @@
 import logging
 import sqlite3
 
+import base64
+from mimetypes import guess_type
 from millify import millify
 import pandas as pd
 from pathlib import Path
@@ -11,7 +13,6 @@ streamlit_root_logger = logging.getLogger(st.__name__)
 
 class Utils:
     DATABASE_PATH = 'static/data/database.db'
-
     def __init__(self):
         # Check and see if the database file is there, and create one if not.
 
@@ -119,7 +120,7 @@ class Utils:
         return True
 
     def get_grants(self) -> pd.DataFrame:
-        sql = """SELECT grant_name, grant_amount, grant_categories,
+        sql = """SELECT grants.grant_id, grant_name, grant_amount, grant_categories,
                    grant_description, grant_start_date, grant_end_date,
                    COALESCE(invoice_count,0) AS invoice_count, COALESCE(invoiced_total,0) AS invoiced_total
                 FROM grants
@@ -134,6 +135,8 @@ class Utils:
         result['grant_start_date'] = pd.to_datetime(result['grant_start_date'])
         result['grant_end_date'] = pd.to_datetime(result['grant_end_date'])
         result['days_remaining'] = (result['grant_end_date'] - pd.to_datetime('today')).dt.days
+        result['days_elapsed'] = (pd.to_datetime('today') - result['grant_start_date']).dt.days
+        result['total_duration'] = (result['grant_end_date'] - result['grant_start_date']).dt.days
 
         return result
 
