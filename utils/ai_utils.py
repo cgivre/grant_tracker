@@ -2,7 +2,6 @@ import ast
 import base64
 import os
 import pathlib
-from functools import lru_cache
 from mimetypes import guess_type
 from dotenv import load_dotenv
 

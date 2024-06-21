@@ -1,6 +1,5 @@
 import logging
 import os
-from pprint import pprint
 
 import dateparser
 import pandas as pd
@@ -23,7 +22,11 @@ grants = st.session_state["grants"]
 grants["id"] = grants.index
 
 
-def process_file(grant: str):
+def process_file(grant: str) -> None:
+    """
+    This function uploads a file and stores it.
+    :param grant: The name of the grant.
+    """
     if st.session_state['uploaded_invoice'] is None:
         return
 

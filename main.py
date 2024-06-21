@@ -67,7 +67,11 @@ def create_grant():
             st.rerun()
 
 
-def process_image_file(grant: str):
+def process_image_file(grant: str) -> None:
+    """
+    This function processes an image file. It accepts an input file, uploads that file and processes it,
+    :param grant: The grant name for which the image is associated.
+    """
     if st.session_state['uploaded_invoice'] is None:
         return
 
