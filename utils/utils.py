@@ -1,18 +1,24 @@
+import hashlib
 import logging
+import os
+import shutil
 import sqlite3
 
-import base64
-from mimetypes import guess_type
 from millify import millify
 import pandas as pd
 from pathlib import Path
+from dotenv import load_dotenv
 import streamlit as st
 
 streamlit_root_logger = logging.getLogger(st.__name__)
+load_dotenv()
 
 
 class Utils:
     DATABASE_PATH = 'static/data/database.db'
+    IMAGE_PATH = os.environ.get('IMAGE_PATH')
+    SALT = os.environ["SALT"]
+
     def __init__(self):
         # Check and see if the database file is there, and create one if not.
 
@@ -98,6 +104,14 @@ class Utils:
 
         return True
 
+    def get_hashed_folder(self, grant_name: str) -> str:
+        """
+        Returns the hashed path containing the grant invoice images.
+        :param grant_name: The grant name.
+        :return: A string containing the hashed path.
+        """
+        return hashlib.md5(f"{grant_name}{self.SALT}".encode('utf-8')).hexdigest()
+
     def create_invoice(self, grant_name: str,
                        vendor_name: str,
                        invoice_categories: str,
@@ -108,10 +122,41 @@ class Utils:
 
         # Get the grant id
         grant_id = self.get_grant_id(grant_name)
-        sql = (f"INSERT INTO invoices (grant_id, vendor_name, invoice_date, invoice_amount, invoice_categories, invoice_description, invoice_receipt_location) "
-               f"VALUES({grant_id},'{vendor_name}','{invoice_date}','{invoice_amount}','{invoice_categories}','{invoice_description}', '{invoice_image}')")
+        sql = (
+            f"INSERT INTO invoices (grant_id, vendor_name, invoice_date, invoice_amount, invoice_categories, invoice_description, invoice_receipt_location) "
+            f"VALUES({grant_id},'{vendor_name}','{invoice_date}','{invoice_amount}','{invoice_categories}','{invoice_description}', '{invoice_image}')")
         streamlit_root_logger.debug(sql)
 
+        try:
+            self.conn.execute(sql)
+        except Exception as e:
+            streamlit_root_logger.error(e)
+            return False
+        return True
+
+    def process_grant_deletion(self, grant_id: int, grant_name) -> bool:
+        # Delete the directory associated with the grant
+        hashed_folder = self.get_hashed_folder(grant_name)
+        image_path = f"{self.IMAGE_PATH}/{hashed_folder}/"
+
+        if os.path.exists(image_path):
+            shutil.rmtree(image_path)
+
+        # Delete all the invoices from the database associated with the grant
+        invoice_success = self.delete_invoices(grant_id)
+
+        # Now delete the grant
+        if invoice_success:
+            sql = f"DELETE FROM grants WHERE grant_id = {grant_id}"
+            try:
+                self.conn.execute(sql)
+            except Exception as e:
+                streamlit_root_logger.error(e)
+                return False
+            return True
+
+    def delete_invoices(self, grant_id: int) -> bool:
+        sql = f"DELETE FROM invoices WHERE grant_id = {grant_id}"
         try:
             self.conn.execute(sql)
         except Exception as e:

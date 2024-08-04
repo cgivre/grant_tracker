@@ -7,12 +7,11 @@ import streamlit as st
 from utils import utils
 from pathlib import Path
 
-from st_aggrid import AgGrid, GridOptionsBuilder
-
 from utils.ai_utils import AIUtils
 
 st.set_page_config(layout="wide")
 streamlit_logger = get_logger(__name__)
+
 
 utils = utils.Utils()
 ai_utils = AIUtils()
@@ -31,6 +30,18 @@ grants['health_score'] = 1 / (
         (grants['remaining_funds'] / grants['grant_amount']) * (grants['days_elapsed'] / grants['total_duration']))
 
 st.session_state["grants"] = grants
+
+
+@st.experimental_dialog("Are you sure?")
+def delete_grant(grant_id: int, grant_name: str):
+    st.write(f"Clicking Yes will permanently delete all invoices associated with {grant_name}. Are you "
+             f"sure you wish to proceed?")
+    dialog_col_1, dialog_col_2 = st.columns(2)
+    if dialog_col_1.button("Yes"):
+        result = utils.process_grant_deletion(grant_id, grant_name)
+        st.rerun()
+    elif dialog_col_2.button("No"):
+        st.rerun()
 
 
 @st.experimental_dialog("Record a Grant")
@@ -76,7 +87,10 @@ def process_image_file(grant: str) -> None:
         return
 
     streamlit_logger.debug(f"Uploaded File: {st.session_state['uploaded_invoice']}")
-    save_folder = f"./invoice_images/{grant}/"
+
+    hashed_folder = utils.get_hashed_folder(grant)
+
+    save_folder = f"./invoice_images/{hashed_folder}/"
     save_path = Path(save_folder, st.session_state['uploaded_invoice'].name)
 
     path_exists = os.path.exists(save_folder)
@@ -94,6 +108,11 @@ def process_image_file(grant: str) -> None:
         # Now analyze the invoice
         st.session_state['parsed_invoice'] = ai_utils.analyze_image(save_path)
 
+
+# Add messages here
+if 'success_message' in st.session_state.keys() and st.session_state['success_message'] is not None:
+    st.success(st.session_state['success_message'])
+    st.session_state['success_message'] = ''
 
 # Add metric columns
 col1, col2, col3 = st.columns(3)
@@ -156,19 +175,6 @@ if len(st.session_state["grants"]) > 0:
                                    },
                                    selection_mode=["single-row"], )
 
-    # updated_df = st.data_editor(data=st.session_state["grants"],
-    #                            use_container_width=True,
-    #                            hide_index=True,
-    #                            num_rows="dynamic")
-
-    #grid_builder = GridOptionsBuilder.from_dataframe(st.session_state["grants"])
-    # Add checkbox to first column
-    #grid_builder.configure_selection(selection_mode="single", use_checkbox=True)
-    #grid_builder.configure_side_bar(filters_panel=True, columns_panel=True)
-
-    #grid_options = grid_builder.build()
-    #AgGrid(data=st.session_state["grants"], gridOptions=grid_options, key='grid1')
-
 if st.button("Add Grant"):
     create_grant()
 
@@ -181,6 +187,13 @@ if len(grant_selection.selection['rows']) > 0:
     # TODO Make this pretty
     grant_info_tab.write(grant_info)
 
+    button_col1, button_col2 = grant_info_tab.columns(2)
+
+    button_col1.button("Update Grant")
+    if button_col2.button("Delete Grant"):
+        if delete_grant(grant_info['grant_id'], grant_info['grant_name']):
+            st.session_state['success_message'] = f"Grant {grant_info['grant_name']} has been deleted."
+
     # Invoice Tab
     invoice_data = utils.get_invoices(grant_info['grant_id'])
     invoices_tab.dataframe(
@@ -191,10 +204,10 @@ if len(grant_selection.selection['rows']) > 0:
 
     # Add Invoice tab
     invoice_image = add_invoice_tab.file_uploader(label="Upload Invoice",
-                                               key='uploaded_invoice',
-                                               type=['png', 'jpg', 'jpeg', 'pdf'],
-                                               accept_multiple_files=False,
-                                               on_change=process_image_file, args=(grant_info['grant_name'],))
+                                                  key='uploaded_invoice',
+                                                  type=['png', 'jpg', 'jpeg', 'pdf'],
+                                                  accept_multiple_files=False,
+                                                  on_change=process_image_file, args=(grant_info['grant_name'],))
 
     with add_invoice_tab.form("invoice_form", clear_on_submit=True):
 
@@ -206,7 +219,8 @@ if len(grant_selection.selection['rows']) > 0:
         if grant_info['grant_name'] != '':
             start_date = pd.to_datetime(
                 str(grants[grants['grant_name'] == grant_info['grant_name']]['grant_start_date'].values[0]))
-            end_date = pd.to_datetime(str(grants[grants['grant_name'] == grant_info['grant_name']]['grant_end_date'].values[0]))
+            end_date = pd.to_datetime(
+                str(grants[grants['grant_name'] == grant_info['grant_name']]['grant_end_date'].values[0]))
 
             expense_categories = st.multiselect(label="Grant Categories",
                                                 help="Enter the categories of your expense.",
@@ -222,7 +236,8 @@ if len(grant_selection.selection['rows']) > 0:
                                          )
             invoice_amount = st.number_input(label="Amount", min_value=0.0,
                                              max_value=
-                                             grants[grants['grant_name'] == grant_info['grant_name']]['grant_amount'].values[
+                                             grants[grants['grant_name'] == grant_info['grant_name']][
+                                                 'grant_amount'].values[
                                                  0].astype(float),
                                              step=100.00,
                                              value=0.0 if 'parsed_invoice' not in st.session_state.keys() else
