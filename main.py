@@ -32,7 +32,7 @@ grants['health_score'] = 1 / (
 st.session_state["grants"] = grants
 
 
-@st.experimental_dialog("Are you sure?")
+@st.dialog("Are you sure?")
 def delete_grant(grant_id: int, grant_name: str):
     st.write(f"Clicking Yes will permanently delete all invoices associated with {grant_name}. Are you "
              f"sure you wish to proceed?")
@@ -44,7 +44,7 @@ def delete_grant(grant_id: int, grant_name: str):
         st.rerun()
 
 
-@st.experimental_dialog("Record a Grant")
+@st.dialog("Record a Grant")
 def create_grant():
     st.header("Enter a Grant")
     with st.form(key="create_grant", clear_on_submit=True):
